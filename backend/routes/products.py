@@ -2,39 +2,42 @@ from flask import Blueprint, jsonify, request
 from backend.extensions import db
 import logging
 from sqlalchemy.exc import SQLAlchemyError
-from backend.routes.auth import token_required  # Ensure correct import
+from backend.routes.auth import token_required
 from sqlalchemy import text
 from decimal import Decimal
+from backend.models import ProductReview
 
-
-# Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 product_bp = Blueprint('product', __name__)
 
-
-#############################################################################get_products#########################################################    
-
 @product_bp.route('/products', methods=['GET'])
 def get_products():
     try:
-        # Fetch category_id of query parameters (optional)
+
         category_id = request.args.get('category_id', default=None, type=int)
 
-        # Perform the stored procedure with category_id passed
-        # Modify the stored procedure to only return active products
-        result = db.session.execute(
-            "EXEC GetAllProducts @category_id = :category_id, @only_active = 1",
-            {'category_id': category_id}
-        )
+        if category_id:
+            query = text("""
+                SELECT p.id, p.product_name, p.product_description, p.price, p.stock, 
+                       c.id as category_id, c.category_name, p.image_url, p.discount
+                FROM products p
+                LEFT JOIN categories c ON p.category_id = c.id
+                WHERE p.category_id = :category_id AND p.is_active = 1
+            """)
+            result = db.session.execute(query, {'category_id': category_id})
+        else:
+            query = text("""
+                SELECT p.id, p.product_name, p.product_description, p.price, p.stock, 
+                       c.id as category_id, c.category_name, p.image_url, p.discount
+                FROM products p
+                LEFT JOIN categories c ON p.category_id = c.id
+                WHERE p.is_active = 1
+            """)
+            result = db.session.execute(query)
+        
         products = result.fetchall()
 
-        # Check the status of "fail"
-        if products and 'status' in products[0].keys() and products[0]['status'] == 'fail':
-            logger.info(f"No products found for category_id {category_id if category_id else 'all'}: {products[0]['message']}")
-            return jsonify({'message': products[0]['message'], 'status_code': products[0]['StatusCode']}), 200
-
-        # Product menu configuration
         formatted_products = []
         for row in products:
             formatted_products.append({
@@ -58,17 +61,15 @@ def get_products():
     except Exception as e:
         logger.error(f"General error fetching products: {str(e)}")
         return jsonify({'message': 'Error flowing products', 'error': str(e)}), 500
-#############################################################################get_product_details#########################################################    
 
 @product_bp.route('/product/<string:product_name>', methods=['GET'])
 @token_required
 def get_product_details(current_user, product_name):
     try:
-        # Pagination parameters
+
         page = request.args.get('page', default=1, type=int)
         per_page = request.args.get('per_page', default=10, type=int)
 
-        # Validation of pagination parameters
         if page < 1 or per_page < 1:
             logger.warning(f"Invalid pagination parameters for product {product_name}: page={page}, per_page={per_page}")
             return jsonify({
@@ -77,17 +78,16 @@ def get_product_details(current_user, product_name):
                 'status_code': 4
             }), 400
 
-        # Fetch Product Details
         logger.debug(f"Fetching product details for: {product_name}")
         product_result = db.session.execute(text("""
-            EXEC GetProductDetails @ProductName = :product_name
+            SELECT p.id as product_id, p.product_name, p.product_description, p.price, 
+                   p.stock, c.category_name, p.image_url, p.discount
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            WHERE p.product_name = :product_name
         """), {'product_name': product_name})
         product_row = product_result.fetchone()
 
-        # Close the result set
-        product_result.close()
-
-        # Check if product exists or if there's a failure status
         if not product_row:
             logger.warning(f"Product not found: {product_name}")
             return jsonify({
@@ -96,81 +96,68 @@ def get_product_details(current_user, product_name):
                 'status_code': 2
             }), 404
 
-        if 'status' in product_row.keys() and product_row['status'] == 'fail':
-            logger.warning(f"Failed to fetch product details for {product_name}: {product_row['message']}")
-            return jsonify({
-                'status': 'fail',
-                'message': product_row['message'],
-                'status_code': product_row['StatusCode']
-            }), 404
-
-        # Format product details
-        discounted_price = float(product_row['price']) * (1 - float(product_row['discount']) / 100)
+        product_id = product_row[0]
+        price = product_row[3]
+        discount = product_row[7]
+        discounted_price = float(price) * (1 - float(discount) / 100)
         product_details = {
-            'product_id': product_row['product_id'],
-            'product_name': product_row['product_name'],
-            'description': product_row['product_description'],
-            'price': float(product_row['price']) if isinstance(product_row['price'], Decimal) else product_row['price'],
+            'product_id': product_id,
+            'product_name': product_row[1],
+            'description': product_row[2],
+            'price': float(price) if isinstance(price, Decimal) else price,
             'discounted_price': round(discounted_price, 2),
-            'stock': product_row['stock'],
-            'stock_status': 'In Stock' if product_row['stock'] > 0 else 'Out of Stock',
-            'category_name': product_row['category_name'],
-            'image_url': product_row['image_url'],
-            'discount': float(product_row['discount']) if isinstance(product_row['discount'], Decimal) else product_row['discount']
+            'stock': product_row[4],
+            'stock_status': 'In Stock' if product_row[4] > 0 else 'Out of Stock',
+            'category_name': product_row[5],
+            'image_url': product_row[6],
+            'discount': float(discount) if isinstance(discount, Decimal) else discount
         }
 
-        # Fetch reviews
         logger.debug(f"Fetching reviews for product: {product_name}, page: {page}, per_page: {per_page}")
+        offset = (page - 1) * per_page
         reviews_result = db.session.execute(text("""
-            EXEC GetReviewsForSpecificProduct 
-                @ProductName = :product_name,
-                @Page = :page,
-                @PerPage = :per_page
-        """), {'product_name': product_name, 'page': page, 'per_page': per_page})
+            SELECT pr.id as review_id, p.id as product_id, p.product_name, u.id as user_id, 
+                   u.username, pr.rating, pr.review_text, pr.created_at, pr.image_url
+            FROM product_reviews pr
+            JOIN products p ON pr.product_id = p.id
+            JOIN users u ON pr.user_id = u.id
+            WHERE p.product_name = :product_name
+            ORDER BY pr.created_at DESC
+            LIMIT :per_page OFFSET :offset
+        """), {'product_name': product_name, 'per_page': per_page, 'offset': offset})
 
         reviews = []
-        reviews_status_row = None
         for row in reviews_result:
-            if 'status' in row.keys():
-                reviews_status_row = row
-            else:
-                reviews.append({
-                    'product_id': row['product_id'],
-                    'product_name': row['product_name'],
-                    'user_id': row['user_id'],
-                    'username': row['username'],
-                    'rating': float(row['rating']) if isinstance(row['rating'], Decimal) else row['rating'],
-                    'review_text': row['review_text'],
-                    'review_date': str(row['review_date']),
-                    'photo_url': row['photo_url']
-                })
-        reviews_result.close()
+            reviews.append({
+                'review_id': row[0],
+                'product_id': row[1],
+                'product_name': row[2],
+                'user_id': row[3],
+                'username': row[4],
+                'rating': float(row[5]) if isinstance(row[5], Decimal) else row[5],
+                'review_text': row[6],
+                'review_date': str(row[7]) if row[7] else '',
+                'photo_url': row[8]
+            })
 
-        if reviews_status_row and reviews_status_row['status'] == 'fail':
-            logger.info(f"No reviews found for product {product_name}: {reviews_status_row['message']}")
-            reviews = []
-
-        # Fetch average rating and total reviews
         avg_rating_result = db.session.execute(text("""
             SELECT 
                 AVG(CAST(rating AS FLOAT)) AS average_rating,
                 COUNT(rating) AS total_reviews
             FROM product_reviews
             WHERE product_id = :product_id
-        """), {'product_id': product_row['product_id']}).fetchone()
+        """), {'product_id': product_id}).fetchone()
 
-        product_details['average_rating'] = round(avg_rating_result['average_rating'], 1) if avg_rating_result['average_rating'] else 0
-        product_details['total_reviews'] = avg_rating_result['total_reviews']
+        product_details['average_rating'] = round(float(avg_rating_result[0]), 1) if avg_rating_result[0] else 0
+        product_details['total_reviews'] = avg_rating_result[1] if avg_rating_result[1] else 0
 
-        # Check if the user can add a review
         existing_review = db.session.execute(
-            "SELECT 1 FROM product_reviews WHERE product_id = :product_id AND user_id = :user_id",
-            {'product_id': product_row['product_id'], 'user_id': current_user.id}
+            text("SELECT 1 FROM product_reviews WHERE product_id = :product_id AND user_id = :user_id"),
+            {'product_id': product_id, 'user_id': current_user.id}
         ).fetchone()
         can_review = not existing_review
 
-        # Pagination
-        total_reviews = avg_rating_result['total_reviews']
+        total_reviews = product_details['total_reviews']
         total_pages = (total_reviews + per_page - 1) // per_page if total_reviews > 0 else 1
 
         logger.info(f"Retrieved product details and {len(reviews)} reviews for product: {product_name}, page: {page}")
@@ -195,85 +182,92 @@ def get_product_details(current_user, product_name):
     except Exception as e:
         logger.error(f"General error fetching product details for {product_name}: {str(e)}")
         return jsonify({'status': 'fail', 'message': f'Server error: {str(e)}'}), 500
-#############################################################################add_product_review#########################################################    
 
 @product_bp.route('/product/<string:product_name>/review', methods=['POST'])
 @token_required
 def add_product_review(current_user, product_name):
 
-    try:
-        # Fetch audit data from the request
-        data = request.get_json()
-        rating = data.get('rating')
-        review_text = data.get('review_text', '')
-        username = current_user.username  # Use the username of the token
+        try:
 
-        # Perform an action to add the review
-        result = db.session.execute(
-            "EXEC AddProductReview @ProductName=:product_name, @Username=:username, @Rating=:rating, @ReviewText=:review_text",
-            {
-                'product_name': product_name,
-                'username': username,
-                'rating': rating,
-                'review_text': review_text
-            }
-        )
-        row = result.fetchone()
+            data = request.get_json()
+            rating = data.get('rating')
+            review_text = data.get('review_text', '')
+            username = current_user.username
 
-        if row and row['status'] == 'fail':
-            logger.warning(f"Failed to add review for product {product_name}: {row['message']}")
-            return jsonify({'status': row['status'], 'message': row['message'], 'status_code': row['StatusCode']}), 400
+            product = db.session.execute(
+                text("SELECT id FROM products WHERE product_name = :product_name"),
+                {'product_name': product_name}
+            ).fetchone()
+            
+            if not product:
+                return jsonify({'status': 'fail', 'message': 'Product not found'}), 404
+            
+            product_id = product[0]
 
-        # If successful, return audit details
-        if row and row['status'] == 'success':
+            from datetime import datetime
+            new_review = ProductReview(
+                product_id=product_id,
+                user_id=current_user.id,
+                rating=rating,
+                review_text=review_text,
+                created_at=datetime.utcnow()
+            )
+            
+            db.session.add(new_review)
             db.session.commit()
+            
             logger.info(f"Review added by user {current_user.id} for product {product_name}")
             return jsonify({
-                'status': row['status'],
-                'message': row['message'],
-                'status_code': row['StatusCode'],
+                'status': 'success',
+                'message': 'Review added successfully',
+                'status_code': 0,
                 'review': {
-                    'review_id': row['review_id'],
-                    'product_id': row['product_id'],
-                    'user_id': row['user_id'],
-                    'rating': row['rating'],
-                    'review_text': row['review_text'],
-                    'review_date': str(row['review_date'])
+                    'review_id': new_review.id,
+                    'product_id': product_id,
+                    'user_id': current_user.id,
+                    'rating': rating,
+                    'review_text': review_text,
+                    'review_date': new_review.created_at.isoformat()
                 }
             }), 201
 
-    except SQLAlchemyError as e:
-        db.session.rollback()
-        logger.error(f"SQLAlchemy error adding review for product {product_name}: {str(e)}")
-        return jsonify({'status': 'fail', 'message': f'Database error: {str(e)}'}), 500
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"General error adding review for product {product_name}: {str(e)}")
-        return jsonify({'status': 'fail', 'message': f'Server error: {str(e)}'}), 500
+        except SQLAlchemyError as e:
+            db.session.rollback()
+            logger.error(f"SQLAlchemy error adding review for product {product_name}: {str(e)}")
+            return jsonify({'status': 'fail', 'message': f'Database error: {str(e)}'}), 500
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"General error adding review for product {product_name}: {str(e)}")
+            return jsonify({'status': 'fail', 'message': f'Server error: {str(e)}'}), 500
     
-#############################################################################delete_review#########################################################    
 @product_bp.route('/product/<string:product_name>/review', methods=['DELETE'])
 @token_required
 def delete_review(current_user, product_name):
-
     try:
 
-        result = db.session.execute(
-            "EXEC DeleteProductReview @ProductName=:product_name, @Username=:username",
-            {
-                "product_name": product_name,
-                "username": current_user.username 
-            }
-        )
-        row = result.fetchone()
-        if row and row[0] == 'success':
-            db.session.commit()
-            logger.info(f"Review deleted for product {product_name} by user {current_user.username }")
-            return jsonify({'message': row[2]}), 200
-        else:
-            db.session.rollback()
-            logger.warning(f"Failed to delete review for product {product_name} by user {current_user.username }: {row[2] if row else 'No response'}")
-            return jsonify({'message': row[2] if row else 'Error deleting review'}), 400
+        product = db.session.execute(
+            text("SELECT id FROM products WHERE product_name = :product_name"),
+            {'product_name': product_name}
+        ).fetchone()
+        
+        if not product:
+            return jsonify({'message': 'Product not found'}), 404
+        
+        product_id = product[0]
+        
+        review = db.session.query(ProductReview).filter_by(
+            product_id=product_id,
+            user_id=current_user.id
+        ).first()
+        
+        if not review:
+            logger.warning(f"No review found for product {product_name} by user {current_user.username}")
+            return jsonify({'message': 'No review found to delete'}), 404
+        
+        db.session.delete(review)
+        db.session.commit()
+        logger.info(f"Review deleted for product {product_name} by user {current_user.username}")
+        return jsonify({'message': 'Review deleted successfully'}), 200
 
     except SQLAlchemyError as e:
         db.session.rollback()
@@ -284,20 +278,15 @@ def delete_review(current_user, product_name):
         logger.error(f"General error deleting review: {str(e)}")
         return jsonify({'message': 'Error deleting review', 'error': str(e)}), 500
     
-
-# mahmoud
-
 @product_bp.route('/categories', methods=['GET'])
 def get_categories():
     """Get all categories"""
     try:
         logger.info("Fetching all categories")
         
-        # Execute direct SQL query
-        result = db.session.execute("SELECT id, category_name FROM categories")
+        result = db.session.execute(text("SELECT id, category_name FROM categories"))
         categories = result.fetchall()
         
-        # Format the response
         formatted_categories = []
         for row in categories:
             formatted_categories.append({

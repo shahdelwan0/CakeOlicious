@@ -28,15 +28,17 @@ def create_app():
         return send_from_directory(os.path.join(app.root_path, 'static'), filename)
 
     CORS(app,
-         origins=["http://localhost:5174", "http://localhost:3000"],
+         origins=["http://localhost:5174", "http://localhost:5175", "http://localhost:3000", "http://127.0.0.1:5175", "http://127.0.0.1:3000"],
          allow_headers=["Content-Type", "Authorization"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
          supports_credentials=True,
          max_age=3600)
 
-    @app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
+    @app.route('/', defaults={'path': ''}, methods=['GET', 'OPTIONS'])
     @app.route('/<path:path>', methods=['OPTIONS'])
-    def handle_options(path):
+    def handle_root(path=''):
+        if path == '':
+            return {'message': 'CakeOlicious API is running'}, 200
         return '', 200
 
     app.config.from_object(Config)
@@ -57,7 +59,3 @@ def create_app():
     app.register_blueprint(upload_bp)
 
     return app
-
-# mahmoud elqalini
-# mahmoud ramadan
-# habiba abdelmalik

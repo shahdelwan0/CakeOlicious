@@ -11,12 +11,8 @@ class ProductReview(db.Model):
     review_text = db.Column(db.Text)
     review_date = db.Column(db.DateTime, default=datetime.utcnow)
     
-   # CHECK constraint for rating
     __table_args__ = (
         db.CheckConstraint('rating >= 1 AND rating <= 5', name='check_rating'),
     )
     
-    # Relationships
     product = db.relationship('Product', backref='reviews')
-
-    

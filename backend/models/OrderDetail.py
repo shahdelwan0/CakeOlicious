@@ -10,7 +10,4 @@ class OrderDetail(db.Model):
     price = db.Column(db.Numeric(10, 2), nullable=False)
     discount = db.Column(db.Numeric(5, 2), nullable=True)
     
-    # Relationships
-    # order = db.relationship('Order', backref='order_details')
     product = db.relationship('Product', backref='order_details')
-    

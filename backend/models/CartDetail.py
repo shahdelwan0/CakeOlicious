@@ -12,11 +12,9 @@ class CartDetails(db.Model):
     discount = db.Column(db.Numeric(5, 2), default=0.0)
     added_date = db.Column(db.DateTime(timezone=True), default=datetime.utcnow)
 
-    # Constraints
     __table_args__ = (
         db.CheckConstraint('quantity > 0', name='check_quantity_positive'),
         db.UniqueConstraint('cart_id', 'product_id', name='UQ_Cart_Product'),
     )
 
-    # Relationships
     product = db.relationship('Product', backref='cart_details', lazy=True)

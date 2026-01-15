@@ -2,11 +2,10 @@ from flask import Blueprint, jsonify, request
 from backend.extensions import db
 from backend.models.User import User
 from backend.models.Product import Product
-from backend.models.Wishlist import Wishlist  # Import the Wishlist model
+from backend.models.Wishlist import Wishlist
 from backend.routes.auth import token_required
 import logging
 
-# Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -18,11 +17,10 @@ def get_wishlist(current_user):
     try:
         logger.debug(f"Retrieving wishlist for user {current_user.id}")
         
-        # Use the ORM instead of raw SQL for better error handling
         wishlist_items = db.session.query(
             Product.id,
             Product.product_name,
-            Product.product_description.label('description'),  # Use the correct column name
+            Product.product_description.label('description'),
             Product.price,
             Product.image_url,
             Product.discount
@@ -74,7 +72,6 @@ def add_to_wishlist(current_user):
                 "message": "Product ID is required"
             }), 400
             
-        # Check if product exists
         product = Product.query.get(product_id)
         if not product:
             logger.warning(f"Product with ID {product_id} not found")
@@ -83,7 +80,6 @@ def add_to_wishlist(current_user):
                 "message": "Product not found"
             }), 404
             
-        # Check if already in wishlist using ORM
         existing_item = Wishlist.query.filter_by(
             user_id=current_user.id, 
             product_id=product_id
@@ -96,7 +92,6 @@ def add_to_wishlist(current_user):
                 "message": "Product already in wishlist"
             }), 400
             
-        # Add to wishlist using ORM
         new_wishlist_item = Wishlist(
             user_id=current_user.id,
             product_id=product_id
@@ -136,7 +131,6 @@ def remove_from_wishlist_post(current_user):
                 "message": "Product ID is required"
             }), 400
             
-        # Remove from wishlist using ORM
         deleted = Wishlist.query.filter_by(
             user_id=current_user.id, 
             product_id=product_id
@@ -165,6 +159,3 @@ def remove_from_wishlist_post(current_user):
             "message": "Error removing from wishlist",
             "error": str(e)
         }), 500
-
-
-

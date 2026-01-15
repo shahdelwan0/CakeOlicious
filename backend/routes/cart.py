@@ -1,19 +1,16 @@
 from flask import Blueprint, request, jsonify
 from sqlalchemy.exc import SQLAlchemyError
-from backend.routes.auth import token_required  # Ensure correct import
+from backend.routes.auth import token_required
 from backend.extensions import db
 from backend.models import Cart
 from backend.models import CartDetail
 from decimal import Decimal
 import logging
 
-
-
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 cart_bp = Blueprint("cart", __name__)
-
 
 @cart_bp.route("/cart/add", methods=["POST"])
 @token_required
@@ -39,8 +36,8 @@ def add_to_cart(current_user):
             },
         )
         row = result.fetchone()
-        status_code = row[0]  # Assuming first column is status code
-        message = row[1]      # Assuming second column is message
+        status_code = row[0]
+        message = row[1]
 
         db.session.commit()
         logger.info(f"Product {product_id} added to cart for user {current_user.id}")
@@ -58,15 +55,11 @@ def add_to_cart(current_user):
         )
         return jsonify({"message": "Unexpected error", "error": str(e)}), 500
 
-
-
-
-
 @cart_bp.route("/cart", methods=["GET"])
 @token_required
 def view_cart(current_user):
     try:
-        # First, check if the user has an active cart
+
         cart_query = """
         SELECT id FROM cart 
         WHERE user_id = :user_id AND is_checked_out = 0
@@ -74,7 +67,6 @@ def view_cart(current_user):
         cart_result = db.session.execute(cart_query, {"user_id": current_user.id})
         cart = cart_result.fetchone()
         
-        # If no active cart, return empty response
         if not cart:
             logger.info(f"No active cart found for user {current_user.id}")
             return jsonify({
@@ -87,7 +79,6 @@ def view_cart(current_user):
         cart_id = cart[0]
         logger.debug(f"Found active cart with ID: {cart_id} for user {current_user.id}")
         
-        # Get cart items with explicit column names
         items_query = """
         SELECT 
             cd.id as cart_item_id,
@@ -117,17 +108,15 @@ def view_cart(current_user):
                 "total_price": 0
             }), 200
             
-        # Format cart items with explicit debugging
         formatted_items = []
         total_price = 0
         
         for item in items:
-            # Debug the raw item data
+
             logger.debug(f"Raw cart item data: {item}")
             
-            # Create a dictionary with explicit keys
             item_dict = {
-                "cart_item_id": item[0],  # This should be the cart_details.id
+                "cart_item_id": item[0],
                 "product_id": item[1],
                 "product_name": item[2],
                 "quantity": item[3],
@@ -136,7 +125,6 @@ def view_cart(current_user):
                 "item_total": float(item[6]) if isinstance(item[6], Decimal) else item[6]
             }
             
-            # Debug the formatted item
             logger.debug(f"Formatted cart item: {item_dict}")
             
             formatted_items.append(item_dict)
@@ -159,8 +147,6 @@ def view_cart(current_user):
             "error_type": type(e).__name__
         }), 500
 
-
-
 @cart_bp.route("/cart/update", methods=["POST"])
 @token_required
 def update_cart_item_quantity(current_user):
@@ -181,7 +167,6 @@ def update_cart_item_quantity(current_user):
             logger.error("Missing cart_item_id or change in request")
             return jsonify({"success": False, "message": "Cart item ID and change value are required"}), 400
 
-        # Check if the cart item exists
         cart_item_check = db.session.execute(
             "SELECT id FROM cart_details WHERE id = :cart_item_id",
             {"cart_item_id": cart_item_id}
@@ -191,7 +176,6 @@ def update_cart_item_quantity(current_user):
             logger.error(f"Cart item with ID {cart_item_id} not found")
             return jsonify({"success": False, "message": f"Cart item with ID {cart_item_id} not found"}), 404
 
-        # Check if the cart item belongs to the current user
         cart_check_query = """
         SELECT c.user_id 
         FROM cart_details cd
@@ -216,7 +200,6 @@ def update_cart_item_quantity(current_user):
             )
             return jsonify({"success": False, "message": "Unauthorized access to cart item"}), 403
 
-        # Get current quantity
         current_quantity = db.session.execute(
             "SELECT quantity FROM cart_details WHERE id = :cart_item_id",
             {"cart_item_id": cart_item_id}
@@ -228,7 +211,6 @@ def update_cart_item_quantity(current_user):
             logger.warning(f"Invalid new quantity {new_quantity} for cart item {cart_item_id}")
             return jsonify({"success": False, "message": "Quantity must be greater than 0"}), 400
             
-        # Update the quantity
         db.session.execute(
             "UPDATE cart_details SET quantity = :new_quantity WHERE id = :cart_item_id",
             {"cart_item_id": cart_item_id, "new_quantity": new_quantity}
@@ -252,8 +234,6 @@ def update_cart_item_quantity(current_user):
             "error": str(e)
         }), 500
 
-
-
 @cart_bp.route("/cart/remove", methods=["POST"])
 @token_required
 def remove_from_cart(current_user):
@@ -272,7 +252,6 @@ def remove_from_cart(current_user):
             logger.error("Missing cart_item_id in request")
             return jsonify({"success": False, "message": "Cart item ID is required"}), 400
 
-        # Check if the cart item exists
         cart_item_check = db.session.execute(
             "SELECT id FROM cart_details WHERE id = :cart_item_id",
             {"cart_item_id": cart_item_id}
@@ -282,7 +261,6 @@ def remove_from_cart(current_user):
             logger.error(f"Cart item with ID {cart_item_id} not found")
             return jsonify({"success": False, "message": f"Cart item with ID {cart_item_id} not found"}), 404
 
-        # Check if the cart item belongs to the current user
         cart_check_query = """
         SELECT c.user_id 
         FROM cart_details cd
@@ -307,7 +285,6 @@ def remove_from_cart(current_user):
             )
             return jsonify({"success": False, "message": "Unauthorized access to cart item"}), 403
 
-        # Instead of using a stored procedure, let's use a direct SQL query for debugging
         try:
             delete_query = """
             DELETE FROM cart_details

@@ -3,18 +3,16 @@ from backend.extensions import db
 import logging
 from decimal import Decimal
 from sqlalchemy.exc import SQLAlchemyError
-from backend.routes.auth import token_required  # Ensure correct import
+from backend.routes.auth import token_required
 
-# Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 order_bp = Blueprint('order', __name__)
 
-# Function to verify the user's role
 def check_admin(current_user):
     return current_user.user_role.lower() == 'admin'
-#######################################################################get_order_details########################################################
+
 @order_bp.route('/order/<int:order_id>', methods=['GET', 'DELETE'])
 @token_required
 def manage_order(current_user, order_id):
@@ -53,7 +51,7 @@ def manage_order(current_user, order_id):
                 "total_amount": float(order_row[6]) if isinstance(order_row[6], Decimal) else order_row[6],
                 "status": order_row[7],
                 "order_date": str(order_row[8]),
-                "can_cancel": order_row[7] not in ['shipped', 'delivered']  # إضافة حقل للدلالة على الإلغاء
+                "can_cancel": order_row[7] not in ['shipped', 'delivered']
             }
             result.close()
 
@@ -127,7 +125,6 @@ def manage_order(current_user, order_id):
             db.session.rollback()
             logger.error(f"General error: {str(e)}")
             return jsonify({'message': 'Error canceling order', 'error': str(e)}), 500
-#######################################################################list_orders_of_user########################################################
 
 @order_bp.route('/orders', methods=['GET'])
 @token_required
@@ -152,5 +149,3 @@ def list_orders_of_user(current_user):
     except Exception as e:
         logger.error(f"General error: {str(e)}")
         return jsonify({'message': 'Error fetching orders', 'error': str(e)}), 500
-    
-# mahmoud

@@ -12,7 +12,3 @@ class Config:
     SESSION_COOKIE_SAMESITE = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
     REMEMBER_COOKIE_DURATION = int(os.getenv('REMEMBER_COOKIE_DURATION', 86400))
     TOKEN_EXPIRATION_DAYS = int(os.getenv('TOKEN_EXPIRATION_DAYS', 1))
-
-# mahmoud elqalini
-# mahmoud ramadan
-# habiba abdelmalik

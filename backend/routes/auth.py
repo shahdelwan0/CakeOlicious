@@ -9,14 +9,10 @@ from flask import current_app as app
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 
-
 auth_bp = Blueprint("auth", __name__)
-
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-
 
 @auth_bp.route("/signup", methods=["POST"])
 def signup():
@@ -63,8 +59,6 @@ def signup():
         print("Error occurred:", str(e))
         return jsonify({"message": "Internal Server Error"}), 500
 
-
-
 @auth_bp.route("/login", methods=["POST"])
 def login():
     try:
@@ -84,7 +78,6 @@ def login():
             )
             return jsonify({"message": "Missing username or password"}), 400
 
-        
         if username == "admin" and password == "admin":
             admin_user = User.query.filter_by(username="admin").first()
             if not admin_user:
@@ -95,12 +88,11 @@ def login():
                     pass_word=hashed_password,
                     email="admin@example.com",
                     full_name="Administrator",
-                    user_role="Admin",  # Make sure this matches the case in your database
+                    user_role="Admin",
                 )
                 db.session.add(admin_user)
                 db.session.commit()
 
-            
             token = jwt.encode(
                 {
                     "user_id": admin_user.id,
@@ -111,7 +103,6 @@ def login():
                 algorithm="HS256",
             )
 
-            
             admin_response = {
                 "token": token,
                 "user": {
@@ -128,7 +119,7 @@ def login():
         user = User.query.filter_by(username=username).first()
 
         if user and check_password_hash(user.pass_word, password):
-            # Create token
+
             token = jwt.encode(
                 {
                     "user_id": user.id,
@@ -139,15 +130,14 @@ def login():
                 algorithm="HS256",
             )
             
-            # Make sure we're including the correct user role field
             user_response = {
                 "token": token,
                 "user": {
                     "id": user.id,
                     "username": user.username,
                     "email": user.email,
-                    "role": user.user_role,  # Use user_role consistently
-                    "user_role": user.user_role  # Include both for compatibility
+                    "role": user.user_role,
+                    "user_role": user.user_role
                 },
             }
             
@@ -160,8 +150,6 @@ def login():
     except Exception as e:
         logger.error(f"Login error: {str(e)}")
         return jsonify({"message": "Internal Server Error"}), 500
-
-
 
 def token_required(f):
     @wraps(f)
@@ -199,8 +187,6 @@ def token_required(f):
 
     return decorated
 
-
-
 @auth_bp.route("/logout", methods=["POST"])
 @token_required
 def logout(current_user):
@@ -214,8 +200,6 @@ def logout(current_user):
     except Exception as e:
         logger.error(f"Logout error for user {current_user.id}: {str(e)}")
         return jsonify({"message": "Internal Server Error", "error": str(e)}), 500
-
-
 
 @auth_bp.route("/profile", methods=["GET"])
 @token_required

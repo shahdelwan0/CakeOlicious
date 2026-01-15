@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify
 from sqlalchemy import text
-from backend.extensions import db  # Changed from backend.models.db
+from backend.extensions import db
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,20 +12,16 @@ def get_bestsellers():
     try:
         logger.info("Bestsellers endpoint called")
         
-        # First, check if we can execute a simple query to verify connection
         test_query = text("SELECT 1 AS test")
         test_result = db.session.execute(test_query).fetchone()
         logger.info(f"Test query result: {test_result}")
         
-        # Get the column names from the database schema
         schema_query = text("""
             SELECT TOP 1 * FROM products
         """)
         schema_result = db.session.execute(schema_query).fetchone()
         logger.info(f"Available columns: {schema_result.keys()}")
         
-        # Use a simpler approach - get the most recent products
-        # Updated column names based on your database schema
         products_query = text("""
             SELECT TOP 8 p.id, p.product_name, p.product_description, p.price, 
                    ISNULL(p.discount, 0) as discount, 
@@ -58,14 +54,9 @@ def get_bestsellers():
         
     except Exception as e:
         logger.error(f"Error in bestsellers endpoint: {str(e)}")
-        # Return a more graceful error with empty products instead of 500
+
         return jsonify({
             'message': 'Failed to fetch bestsellers',
             'error': str(e),
             'products': []
-        }), 200  # Return 200 with empty products instead of 500
-
-
-
-
-
+        }), 200

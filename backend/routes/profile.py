@@ -1,11 +1,10 @@
 from flask import Blueprint, jsonify, request
 from backend.extensions import db
 from backend.models.User import User
-from backend.routes.auth import token_required  # Ensure correct import
+from backend.routes.auth import token_required
 import logging
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# Set up logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -44,7 +43,6 @@ def update_profile(current_user):
     try:
         data = request.get_json()
         
-        # Update user fields
         if 'full_name' in data:
             current_user.full_name = data['full_name']
         if 'user_address' in data:
@@ -54,7 +52,6 @@ def update_profile(current_user):
         if 'email' in data:
             current_user.email = data['email']
             
-        # Update password if provided
         if 'current_password' in data and 'new_password' in data:
             if not check_password_hash(current_user.pass_word, data['current_password']):
                 return jsonify({

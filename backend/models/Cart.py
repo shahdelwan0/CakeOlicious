@@ -9,6 +9,5 @@ class Cart(db.Model):
     created_date = db.Column(db.DateTime(timezone=True), default=datetime.utcnow)
     is_checked_out = db.Column(db.Boolean, default=False)
 
-    # Relationships
     user = db.relationship('User', backref='carts', lazy=True)
     cart_details = db.relationship('CartDetails', backref='cart', lazy=True)

@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import axios from 'axios';
-import { toast } from 'react-toastify';
-import AddToCart from '../components/AddToCart';
-import { useAuth } from '../context/AuthContext'; // Assuming you have an auth context
+import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import axios from "axios";
+import { toast } from "react-toastify";
+import AddToCart from "../components/AddToCart";
+import { useAuth } from "../Context/AuthContext"; // Assuming you have an auth context
 
 const ProductDetail = () => {
   const { productId } = useParams();
@@ -14,11 +14,13 @@ const ProductDetail = () => {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const response = await axios.get(`http://localhost:5000/products/${productId}`);
+        const response = await axios.get(
+          `http://localhost:5000/products/${productId}`
+        );
         setProduct(response.data);
       } catch (error) {
-        console.error('Error fetching product:', error);
-        toast.error('Failed to load product details');
+        console.error("Error fetching product:", error);
+        toast.error("Failed to load product details");
       } finally {
         setLoading(false);
       }
@@ -52,11 +54,13 @@ const ProductDetail = () => {
           )}
         </div>
         <p className="stock">In Stock: {product.stock}</p>
-        
+
         {isAuthenticated ? (
           <AddToCart productId={product.id} token={token} />
         ) : (
-          <p className="login-prompt">Please log in to add items to your cart</p>
+          <p className="login-prompt">
+            Please log in to add items to your cart
+          </p>
         )}
       </div>
     </div>

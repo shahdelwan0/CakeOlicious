@@ -1,10 +1,9 @@
 from flask import Blueprint, request, jsonify
 from sqlalchemy.exc import SQLAlchemyError
-from backend.routes.auth import token_required  # Ensure correct import
+from backend.routes.auth import token_required
 from backend.extensions import db
 import logging
 
-# Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
@@ -13,7 +12,6 @@ checkout_bp = Blueprint('checkout', __name__)
 def check_admin(current_user):
     return current_user.user_role.lower() == 'admin'
     
-#################################################### create_order ####################################################  
 @checkout_bp.route('/checkout', methods=['POST'])
 @token_required
 def create_order(current_user):
@@ -33,7 +31,7 @@ def create_order(current_user):
         }), 400
 
     try:
-        # Get active cart for the user
+
         cart = db.session.execute(
             "SELECT id FROM Cart WHERE user_id = :user_id AND is_checked_out = 0",
             {"user_id": current_user.id}
@@ -48,7 +46,6 @@ def create_order(current_user):
 
         cart_id = cart[0]
         
-        # Calculate total amount from cart_details, considering discount
         total_amount = db.session.execute(
             "SELECT SUM(quantity * price * (1 - discount / 100)) FROM cart_details WHERE cart_id = :cart_id",
             {"cart_id": cart_id}
@@ -64,7 +61,6 @@ def create_order(current_user):
                 'message': 'Your cart is empty or the total amount is zero'
             }), 400
 
-        # Execute stored procedure to create order
         result = db.session.execute(
             "EXEC CreateOrder @UserID=:user_id, @ShippingAddress=:shipping_address, @TotalAmount=:total_amount, @PaymentMethod=:payment_method",
             {
@@ -77,9 +73,8 @@ def create_order(current_user):
         rows = result.fetchall()
         db.session.commit()
     
-        # Check if we got a result
         if rows:
-            row = rows[0]  # Take the first row (assuming single result)
+            row = rows[0]
             status, status_code, message, order_id = row
             print(f"CreateOrder result: {status}, {status_code}, {message}, {order_id}")
             if status == 'success':
@@ -119,19 +114,17 @@ def create_order(current_user):
             'error': str(e)
         }), 500
     
-################################################################ get_order_details ########################################
 @checkout_bp.route('/order/<int:order_id>', methods=['GET'])
 @token_required
 def get_order_details(current_user, order_id):
     try:
-        # Execute the Stored Procedure to get order details
+
         result = db.session.execute(
             "EXEC GetOrderDetails @order_id=:order_id",
             {"order_id": order_id}
         )
         order_row = result.fetchone()
 
-        # Check if the stored procedure returned a failure status
         if order_row and order_row[0] == 'fail':
             result.close()
             logger.warning(f"Order {order_id} not found for user {current_user.id}")
@@ -140,7 +133,6 @@ def get_order_details(current_user, order_id):
                 "message": order_row[1]
             }), 404
 
-        # Check if order exists and belongs to the current user
         if not order_row or order_row[1] != current_user.id:
             result.close()
             logger.warning(f"Order {order_id} not found or unauthorized access by user {current_user.id}")
@@ -149,7 +141,6 @@ def get_order_details(current_user, order_id):
                 "message": "Order not found or you do not have access to this order"
             }), 404
 
-        # Order exists, format the data
         order = {
             "id": order_row[0],
             "user_id": order_row[1],
@@ -163,7 +154,6 @@ def get_order_details(current_user, order_id):
         }
         result.close()
 
-        # Fetch order items
         result = db.session.execute(
             "EXEC GetOrderItems @order_id=:order_id",
             {"order_id": order_id}
@@ -199,12 +189,11 @@ def get_order_details(current_user, order_id):
             "message": f"Unexpected error: {str(e)}"
         }), 500
 
-################################################################ checkout info ########################################
 @checkout_bp.route('/checkout', methods=['GET'])
 @token_required
 def checkout(current_user):
     try:
-        # Get active cart for the user
+
         cart = db.session.execute(
             "SELECT id FROM Cart WHERE user_id = :user_id AND is_checked_out = 0",
             {"user_id": current_user.id}
@@ -219,7 +208,6 @@ def checkout(current_user):
 
         cart_id = cart[0]
 
-        # Fetch cart items
         result = db.session.execute(
             "SELECT p.product_name, cd.quantity, cd.price, cd.discount "
             "FROM cart_details cd "
@@ -238,7 +226,6 @@ def checkout(current_user):
             })
         result.close()
 
-        # Calculate total amount
         total_amount = db.session.execute(
             "SELECT SUM(quantity * price * (1 - discount / 100)) FROM cart_details WHERE cart_id = :cart_id",
             {"cart_id": cart_id}
@@ -266,6 +253,3 @@ def checkout(current_user):
             "status": "error",
             "message": f"Unexpected error: {str(e)}"
         }), 500
-    
-
-# mahmoud 

@@ -16,7 +16,6 @@ def create_checkout_session(current_user):
     try:
         logger.info(f"Creating checkout session for user {current_user.id}")
         
-        # Check if Stripe API key is configured
         if not stripe.api_key:
             logger.error("Stripe API key is not configured")
             return jsonify({
@@ -34,7 +33,6 @@ def create_checkout_session(current_user):
             
         logger.info(f"Getting details for order {order_id}")
         
-        # Get order details
         order_query = """
         SELECT o.id, o.total_amount, o.shipping_address
         FROM orders o
@@ -53,7 +51,6 @@ def create_checkout_session(current_user):
         logger.info(f"Order found: {order_result}")
         order_id, total_amount, shipping_address = order_result
         
-        # Get order items
         items_query = """
         SELECT p.product_name, od.quantity, od.price, od.discount
         FROM order_details od
@@ -64,7 +61,6 @@ def create_checkout_session(current_user):
         items_result = db.session.execute(items_query, {"order_id": order_id}).fetchall()
         logger.info(f"Found {len(items_result)} items for order {order_id}")
         
-        # Create line items for Stripe
         line_items = []
         for item in items_result:
             product_name, quantity, price, discount = item
@@ -76,12 +72,11 @@ def create_checkout_session(current_user):
                     'product_data': {
                         'name': product_name,
                     },
-                    'unit_amount': int(discounted_price * 100),  # Convert to cents
+                    'unit_amount': int(discounted_price * 100),
                 },
                 'quantity': quantity,
             })
         
-        # Add a fallback item if no items were found
         if not line_items:
             logger.warning(f"No items found for order {order_id}, using total amount")
             line_items.append({
@@ -90,18 +85,16 @@ def create_checkout_session(current_user):
                     'product_data': {
                         'name': f"Order #{order_id}",
                     },
-                    'unit_amount': int(total_amount * 100),  # Convert to cents
+                    'unit_amount': int(total_amount * 100),
                 },
                 'quantity': 1,
             })
         
         logger.info(f"Creating Stripe checkout session with {len(line_items)} items")
         
-        # Get frontend URL from config
         frontend_url = current_app.config.get('FRONTEND_URL', 'http://localhost:3000')
         logger.info(f"Frontend URL: {frontend_url}")
         
-        # Create Stripe Checkout session
         try:
             checkout_session = stripe.checkout.Session.create(
                 payment_method_types=['card'],
@@ -117,7 +110,6 @@ def create_checkout_session(current_user):
             
             logger.info(f"Checkout session created: {checkout_session.id}")
             
-            # Return the session ID to the client
             return jsonify({
                 "success": True,
                 "message": "Checkout session created",
@@ -153,8 +145,8 @@ def create_payment(order_id):
         return jsonify({'message': 'Order is not pending'}), 400
 
     data = request.get_json()
-    payment_method = data.get('payment_method', 'Cash on Delivery')  # Default: Cash on delivery
-    # Create payment
+    payment_method = data.get('payment_method', 'Cash on Delivery')
+
     new_payment = Payment(
         order_id=order_id,
         amount=order.total_amount,
@@ -164,7 +156,6 @@ def create_payment(order_id):
     )
     db.session.add(new_payment)
 
-    # Update order status
     order.status = 'Processing'
     db.session.commit()
 
@@ -181,5 +172,3 @@ def get_payment(payment_id):
         'payment_status': payment.payment_status,
         'payment_date': payment.payment_date.isoformat()
     }) 
-
-

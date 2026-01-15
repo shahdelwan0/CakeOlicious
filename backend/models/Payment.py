@@ -11,10 +11,7 @@ class Payment(db.Model):
     payment_method = db.Column(db.String(20), nullable=False)
     status = db.Column(db.String(20), nullable=False)
     
-    # CHECK RESTRICTIONS
     __table_args__ = (
         db.CheckConstraint("payment_method IN ('Credit Card', 'PayPal', 'Bank Transfer', 'Cash on Delivery', 'Gift Card')", name='check_payment_method'),
         db.CheckConstraint("status IN ('Pending', 'Completed')", name='check_payment_status'),
     )
-    
-    
