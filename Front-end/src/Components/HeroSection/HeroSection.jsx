@@ -1,32 +1,16 @@
-import React, { useRef, useEffect } from "react";
+import React from "react";
 import styles from "./HeroSection.module.css";
+import bgImage from "../../assets/takuya-nagaoka-fENvSZUzbzU-unsplash.jpg";
 
 const HeroSection = () => {
-  const videoRef = useRef(null);
-
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.play().catch((error) => {
-        console.log("Video autoplay failed:", error);
-      });
-    }
-  }, []);
-
   return (
     <div className={`container-fluid p-0 ${styles.heroSection}`}>
       <div className={styles.videoContainer}>
-        <video
-          ref={videoRef}
-          autoPlay
-          loop
-          muted
-          playsInline
+        <img
           className={styles.backgroundVideo}
-          poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1920 1080'%3E%3Crect fill='%23000' width='1920' height='1080'/%3E%3C/svg%3E"
-        >
-          <source src="/promo.mp4" type="video/mp4" />
-          Your browser does not support the video tag.
-        </video>
+          src={bgImage}
+          alt="Hero Background"
+        />
         <div className={styles.overlay}></div>
       </div>
       <div className={styles.content}>
